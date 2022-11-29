@@ -5,7 +5,7 @@ use crate::loader::get_app_data_by_name;
 use crate::mm::{translated_refmut, translated_str, virtaddr2phyaddr, VirtAddr};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next, get_cur_start_time,
-    get_cur_syscall, suspend_current_and_run_next, TaskStatus, mmap, munmap,
+    get_cur_syscall, mmap, munmap, suspend_current_and_run_next, TaskStatus,
 };
 use crate::timer::get_time_us;
 use alloc::sync::Arc;
@@ -148,7 +148,7 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 
 // YOUR JOB: 实现sys_set_priority，为任务添加优先级
 pub fn sys_set_priority(prio: isize) -> isize {
-    if prio <= 1{
+    if prio <= 1 {
         return -1;
     }
     let cur = current_task().unwrap();
@@ -159,15 +159,15 @@ pub fn sys_set_priority(prio: isize) -> isize {
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
 pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
-    if start % 0x1000 != 0{
+    if start % 0x1000 != 0 {
         return -1;
     }
-    if port & !0x7 != 0 || port == 0{
+    if port & !0x7 != 0 || port == 0 {
         return -1;
     }
     let mut ll = len;
-    if len % 0x1000 !=0 {
-        ll = (len/PAGE_SIZE + 1) * PAGE_SIZE;
+    if len % 0x1000 != 0 {
+        ll = (len / PAGE_SIZE + 1) * PAGE_SIZE;
     }
 
     mmap(start, ll, port)
@@ -175,7 +175,7 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
 }
 
 pub fn sys_munmap(start: usize, len: usize) -> isize {
-    if start % PAGE_SIZE != 0 || len % PAGE_SIZE !=0{
+    if start % PAGE_SIZE != 0 || len % PAGE_SIZE != 0 {
         return -1;
     }
     munmap(start, len)
@@ -188,7 +188,7 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
 pub fn sys_spawn(path: *const u8) -> isize {
     let cur = current_task().unwrap();
     let new_task = cur.spawn(path);
-    if new_task.is_none(){
+    if new_task.is_none() {
         return -1;
     }
     let new_task = new_task.unwrap();

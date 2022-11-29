@@ -7,8 +7,8 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
-use crate::config::{MAX_SYSCALL_NUM, BIG_STRIDE};
-use crate::mm::{VirtPageNum, VirtAddr, MapPermission};
+use crate::config::{BIG_STRIDE, MAX_SYSCALL_NUM};
+use crate::mm::{MapPermission, VirtAddr, VirtPageNum};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_us;
 use crate::trap::TrapContext;
@@ -39,7 +39,6 @@ impl Processor {
     pub fn current(&self) -> Option<Arc<TaskControlBlock>> {
         self.current.as_ref().map(|task| Arc::clone(task))
     }
-
 }
 
 lazy_static! {
@@ -112,49 +111,63 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
 }
 
 pub fn get_cur_start_time() -> usize {
-    current_task().unwrap().inner_exclusive_access().get_start_time()
+    current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .get_start_time()
 }
 
 pub fn increase_cur_syscall(id: usize) {
     // PROCESSOR
     //     .exclusive_access()
     //     .increase_current_task_syscall(id);
-    current_task().unwrap().inner_exclusive_access().increase_syscall_times(id);
+    current_task()
+        .unwrap()
+        .inner_exclusive_access()
+        .increase_syscall_times(id);
 }
 
 pub fn get_cur_syscall() -> [u32; MAX_SYSCALL_NUM] {
     // PROCESSOR.exclusive_access().get_current_task_syscall()
     let mut ret = [0; MAX_SYSCALL_NUM];
-    ret.copy_from_slice(current_task().unwrap().inner_exclusive_access().get_syscall_times().as_slice());
+    ret.copy_from_slice(
+        current_task()
+            .unwrap()
+            .inner_exclusive_access()
+            .get_syscall_times()
+            .as_slice(),
+    );
     ret
 }
 
-pub fn mmap(start: usize, len: usize, port: usize) -> isize{
-    let cur = current_task().unwrap();
-    let mut inner = cur.inner_exclusive_access();
-    let svpn = VirtPageNum::from(VirtAddr::from(start));
-    let evpn = VirtAddr::from(start+len).ceil();
-    for vpn in svpn.0..evpn.0{
-        if inner.memory_set.check_mapped(vpn.into()){
-            return -1;
-        }
-    }
-    let permission = MapPermission::from_bits(((port<<1) | 0x10) as u8).unwrap();
-    inner.memory_set.insert_framed_area(svpn.into(), evpn.into(), permission);
-    0
-}
-
-pub fn munmap(start: usize, len: usize) -> isize{
+pub fn mmap(start: usize, len: usize, port: usize) -> isize {
     let cur = current_task().unwrap();
     let mut inner = cur.inner_exclusive_access();
     let svpn = VirtPageNum::from(VirtAddr::from(start));
     let evpn = VirtAddr::from(start + len).ceil();
-    for vpn in svpn.0..evpn.0{
-        if inner.memory_set.check_unmapped(vpn.into()){
+    for vpn in svpn.0..evpn.0 {
+        if inner.memory_set.check_mapped(vpn.into()) {
             return -1;
         }
     }
-    for vpn in svpn.0..evpn.0{
+    let permission = MapPermission::from_bits(((port << 1) | 0x10) as u8).unwrap();
+    inner
+        .memory_set
+        .insert_framed_area(svpn.into(), evpn.into(), permission);
+    0
+}
+
+pub fn munmap(start: usize, len: usize) -> isize {
+    let cur = current_task().unwrap();
+    let mut inner = cur.inner_exclusive_access();
+    let svpn = VirtPageNum::from(VirtAddr::from(start));
+    let evpn = VirtAddr::from(start + len).ceil();
+    for vpn in svpn.0..evpn.0 {
+        if inner.memory_set.check_unmapped(vpn.into()) {
+            return -1;
+        }
+    }
+    for vpn in svpn.0..evpn.0 {
         inner.memory_set.remove_vpn(vpn.into());
     }
     0

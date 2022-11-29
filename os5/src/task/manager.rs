@@ -30,22 +30,17 @@ impl TaskManager {
         self.ready_queue.pop_front()
     }
 
-    pub fn fetch_stride(&mut self) -> Option<Arc<TaskControlBlock>>{
-        if self.ready_queue.is_empty(){
+    pub fn fetch_stride(&mut self) -> Option<Arc<TaskControlBlock>> {
+        if self.ready_queue.is_empty() {
             return None;
         }
-        let mut cur_stride = self.ready_queue.front().clone().unwrap().get_stride();
-        let mut idx = 0;
-        for (i, t) in self.ready_queue.iter().enumerate(){
-            let s = t.get_stride();
-            if s < cur_stride{
-                cur_stride = s;
-                idx = i;
-            }
-        }
-        // let ret = self.ready_queue.get(idx).map(|t| Arc::clone(t));
-        let ret = self.ready_queue.remove(idx);
-        ret
+        let (idx, _) = self
+            .ready_queue
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, t)| t.get_stride())
+            .unwrap();
+        self.ready_queue.remove(idx)
     }
 }
 

@@ -1,16 +1,16 @@
 //! Types related to task management & Functions for completely changing TCB
 
-use super::{TaskContext, add_task};
+use super::{add_task, TaskContext};
 use super::{pid_alloc, KernelStack, PidHandle};
-use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT, BIG_STRIDE};
+use crate::config::{BIG_STRIDE, MAX_SYSCALL_NUM, TRAP_CONTEXT};
 use crate::loader::get_app_data_by_name;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE, translated_str};
+use crate::mm::{translated_str, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
+use crate::task::current_user_token;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cell::RefMut;
-use crate::task::{current_user_token};
 
 /// Task control block structure
 ///
@@ -79,20 +79,21 @@ impl TaskControlBlockInner {
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
     }
-    pub fn increase_syscall_times(&mut self, id: usize){
+    pub fn increase_syscall_times(&mut self, id: usize) {
         self.task_syscall_times[id] += 1;
     }
 
-    pub fn get_start_time(&self) -> usize{
+    pub fn get_start_time(&self) -> usize {
         self.task_start_time
     }
 
-    pub fn get_syscall_times(&self) -> Vec<u32>{
+    pub fn get_syscall_times(&self) -> Vec<u32> {
         self.task_syscall_times.clone()
     }
 
-    pub fn set_prio(&mut self, prio: isize){
+    pub fn set_prio(&mut self, prio: isize) {
         self.prio = prio;
+        self.pass = BIG_STRIDE / prio as usize;
     }
 }
 
@@ -102,7 +103,7 @@ impl TaskControlBlock {
         self.inner.exclusive_access()
     }
 
-    pub fn get_stride(&self) -> usize{
+    pub fn get_stride(&self) -> usize {
         self.inner.exclusive_access().stride
     }
 
@@ -230,9 +231,9 @@ impl TaskControlBlock {
         let token = current_user_token();
         let path = translated_str(token, path);
         let elf_data: &[u8];
-        if let Some(data) = get_app_data_by_name(path.as_str()){
+        if let Some(data) = get_app_data_by_name(path.as_str()) {
             elf_data = data;
-        }else{
+        } else {
             return None;
         }
         let mut parent_inner = self.inner_exclusive_access();
