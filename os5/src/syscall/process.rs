@@ -1,14 +1,14 @@
 //! Process management syscalls
 
+use crate::config::{MAX_SYSCALL_NUM, PAGE_SIZE};
 use crate::loader::get_app_data_by_name;
-use crate::mm::{translated_refmut, translated_str};
+use crate::mm::{translated_refmut, translated_str, virtaddr2phyaddr, VirtAddr};
 use crate::task::{
-    add_task, current_task, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next, TaskStatus,
+    add_task, current_task, current_user_token, exit_current_and_run_next, get_cur_start_time,
+    get_cur_syscall, suspend_current_and_run_next, TaskStatus, mmap, munmap,
 };
 use crate::timer::get_time_us;
 use alloc::sync::Arc;
-use crate::config::MAX_SYSCALL_NUM;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -106,20 +106,42 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_get_time
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    let _us = get_time_us();
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
-    0
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
+    let virt_us: VirtAddr = (ts as usize).into();
+    if let Some(pa) = virtaddr2phyaddr(virt_us) {
+        let us = get_time_us();
+        let phy_ts = pa.0 as *mut TimeVal;
+        unsafe {
+            *phy_ts = TimeVal {
+                sec: us / 1_000_000,
+                usec: us % 1_000_000,
+            };
+        }
+        0
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    -1
+    let virt_ti: VirtAddr = (ti as usize).into();
+    if let Some(pa) = virtaddr2phyaddr(virt_ti) {
+        let now = get_time_us();
+        let start = get_cur_start_time();
+        let st = get_cur_syscall();
+        let phy_ti = pa.0 as *mut TaskInfo;
+        unsafe {
+            *phy_ti = TaskInfo {
+                status: TaskStatus::Running,
+                syscall_times: st,
+                time: (now - start) / 1_000,
+            };
+        }
+        0
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: 实现sys_set_priority，为任务添加优先级
@@ -128,17 +150,38 @@ pub fn sys_set_priority(_prio: isize) -> isize {
 }
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    if start % 0x1000 != 0{
+        return -1;
+    }
+    if port & !0x7 != 0 || port == 0{
+        return -1;
+    }
+    let mut ll = len;
+    if len % 0x1000 !=0 {
+        ll = (len/PAGE_SIZE + 1) * PAGE_SIZE;
+    }
+
+    mmap(start, ll, port)
 }
 
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    if start % PAGE_SIZE != 0 || len % PAGE_SIZE !=0{
+        return -1;
+    }
+    munmap(start, len)
 }
 
 //
 // YOUR JOB: 实现 sys_spawn 系统调用
-// ALERT: 注意在实现 SPAWN 时不需要复制父进程地址空间，SPAWN != FORK + EXEC 
-pub fn sys_spawn(_path: *const u8) -> isize {
-    -1
+// ALERT: 注意在实现 SPAWN 时不需要复制父进程地址空间，SPAWN != FORK + EXEC
+pub fn sys_spawn(path: *const u8) -> isize {
+    let cur = current_task().unwrap();
+    let new_task = cur.spawn(path);
+    if new_task.is_none(){
+        return -1;
+    }
+    let new_task = new_task.unwrap();
+    let new_pid = new_task.pid.0;
+    new_pid as isize
 }

@@ -3,7 +3,6 @@
 //! It is only used to manage processes and schedule process based on ready queue.
 //! Other CPU process monitoring functions are in Processor.
 
-
 use super::TaskControlBlock;
 use crate::sync::UPSafeCell;
 use alloc::collections::VecDeque;

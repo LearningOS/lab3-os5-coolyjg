@@ -1,6 +1,8 @@
 //! Implementation of physical and virtual address and page number.
 use super::PageTableEntry;
 use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
+use crate::mm::PageTable;
+use crate::task::current_user_token;
 use core::fmt::{self, Debug, Formatter};
 
 /// Definitions
@@ -244,3 +246,17 @@ where
 
 /// a simple range structure for virtual page number
 pub type VPNRange = SimpleRange<VirtPageNum>;
+
+pub fn virtaddr2phyaddr(virt: VirtAddr) -> Option<PhysAddr> {
+    let offset = virt.page_offset();
+    let vpn = virt.floor();
+    let ppn = PageTable::from_token(current_user_token())
+        .translate(vpn)
+        .map(|e| e.ppn());
+    if let Some(ppn) = ppn {
+        let start: PhysAddr = ppn.into();
+        Some((start.0 | offset).into())
+    } else {
+        None
+    }
+}

@@ -2,13 +2,15 @@
 
 use super::TaskContext;
 use super::{pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT};
+use crate::loader::get_app_data_by_name;
+use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE, translated_str};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cell::RefMut;
+use crate::task::{current_user_token};
 
 /// Task control block structure
 ///
@@ -46,6 +48,10 @@ pub struct TaskControlBlockInner {
     pub children: Vec<Arc<TaskControlBlock>>,
     /// It is set when active exit or execution error occurs
     pub exit_code: i32,
+    // first schedule time
+    pub task_start_time: usize,
+    // syscall count array
+    pub task_syscall_times: [u32; MAX_SYSCALL_NUM],
 }
 
 /// Simple access to its internal fields
@@ -66,6 +72,17 @@ impl TaskControlBlockInner {
     }
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
+    }
+    pub fn increase_syscall_times(&mut self, id: usize){
+        self.task_syscall_times[id] += 1;
+    }
+
+    pub fn get_start_time(&self) -> usize{
+        self.task_start_time
+    }
+
+    pub fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM]{
+        self.task_syscall_times.clone()
     }
 }
 
@@ -103,6 +120,8 @@ impl TaskControlBlock {
                     parent: None,
                     children: Vec::new(),
                     exit_code: 0,
+                    task_start_time: 0,
+                    task_syscall_times: [0; MAX_SYSCALL_NUM],
                 })
             },
         };
@@ -170,6 +189,8 @@ impl TaskControlBlock {
                     parent: Some(Arc::downgrade(self)),
                     children: Vec::new(),
                     exit_code: 0,
+                    task_start_time: 0,
+                    task_syscall_times: [0; MAX_SYSCALL_NUM],
                 })
             },
         });
@@ -184,6 +205,55 @@ impl TaskControlBlock {
         // ---- release parent PCB automatically
         // **** release children PCB automatically
     }
+
+    pub fn spawn(self: &Arc<TaskControlBlock>, path: *const u8) -> Option<Arc<TaskControlBlock>> {
+        let token = current_user_token();
+        let path = translated_str(token, path);
+        let elf_data: &[u8];
+        if let Some(data) = get_app_data_by_name(path.as_str()){
+            elf_data = data;
+        }else{
+            return None;
+        }
+        let mut parent_inner = self.inner_exclusive_access();
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+        let trap_cx_ppn = memory_set
+            .translate(VirtAddr::from(TRAP_CONTEXT).into())
+            .unwrap()
+            .ppn();
+        let pid_handle = pid_alloc();
+        let kernel_stack = KernelStack::new(&pid_handle);
+        let kernel_stack_top = kernel_stack.get_top();
+        let task_control_block = Arc::new(TaskControlBlock {
+            pid: pid_handle,
+            kernel_stack,
+            inner: unsafe {
+                UPSafeCell::new(TaskControlBlockInner {
+                    trap_cx_ppn,
+                    base_size: parent_inner.base_size,
+                    task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+                    task_status: TaskStatus::Ready,
+                    memory_set,
+                    parent: Some(Arc::downgrade(self)),
+                    children: Vec::new(),
+                    exit_code: 0,
+                    task_start_time: 0,
+                    task_syscall_times: [0; MAX_SYSCALL_NUM],
+                })
+            },
+        });
+        parent_inner.children.push(task_control_block.clone());
+        let trap_cx = task_control_block.inner_exclusive_access().get_trap_cx();
+        *trap_cx = TrapContext::app_init_context(
+            entry_point,
+            user_sp,
+            KERNEL_SPACE.exclusive_access().token(),
+            kernel_stack_top,
+            trap_handler as usize,
+        );
+        Some(task_control_block)
+    }
+
     pub fn getpid(&self) -> usize {
         self.pid.0
     }
