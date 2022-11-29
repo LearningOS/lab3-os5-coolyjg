@@ -121,6 +121,7 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     } else {
         -1
     }
+    // -1
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
@@ -142,6 +143,7 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     } else {
         -1
     }
+    // -1
 }
 
 // YOUR JOB: 实现sys_set_priority，为任务添加优先级
@@ -152,6 +154,7 @@ pub fn sys_set_priority(prio: isize) -> isize {
     let cur = current_task().unwrap();
     cur.inner_exclusive_access().set_prio(prio);
     prio
+    // -1
 }
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
@@ -168,6 +171,7 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     }
 
     mmap(start, ll, port)
+    // -1
 }
 
 pub fn sys_munmap(start: usize, len: usize) -> isize {
@@ -175,6 +179,7 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
         return -1;
     }
     munmap(start, len)
+    // -1
 }
 
 //
@@ -188,5 +193,7 @@ pub fn sys_spawn(path: *const u8) -> isize {
     }
     let new_task = new_task.unwrap();
     let new_pid = new_task.pid.0;
+    // add_task(new_task);
     new_pid as isize
+    // -1
 }

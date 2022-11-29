@@ -34,7 +34,7 @@ impl TaskManager {
         if self.ready_queue.is_empty(){
             return None;
         }
-        let mut cur_stride = self.ready_queue.front().unwrap().get_stride();
+        let mut cur_stride = self.ready_queue.front().clone().unwrap().get_stride();
         let mut idx = 0;
         for (i, t) in self.ready_queue.iter().enumerate(){
             let s = t.get_stride();
@@ -60,6 +60,6 @@ pub fn add_task(task: Arc<TaskControlBlock>) {
 }
 
 pub fn fetch_task() -> Option<Arc<TaskControlBlock>> {
-    // TASK_MANAGER.exclusive_access().fetch()
-    TASK_MANAGER.exclusive_access().fetch_stride()
+    TASK_MANAGER.exclusive_access().fetch()
+    // TASK_MANAGER.exclusive_access().fetch_stride()
 }

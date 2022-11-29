@@ -1,6 +1,6 @@
 //! Types related to task management & Functions for completely changing TCB
 
-use super::TaskContext;
+use super::{TaskContext, add_task};
 use super::{pid_alloc, KernelStack, PidHandle};
 use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT};
 use crate::loader::get_app_data_by_name;
@@ -269,6 +269,7 @@ impl TaskControlBlock {
             kernel_stack_top,
             trap_handler as usize,
         );
+        add_task(task_control_block.clone());
         Some(task_control_block)
     }
 
