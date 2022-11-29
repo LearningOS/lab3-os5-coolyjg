@@ -7,7 +7,7 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
-use crate::config::MAX_SYSCALL_NUM;
+use crate::config::{MAX_SYSCALL_NUM, BIG_STRIDE};
 use crate::mm::{VirtPageNum, VirtAddr, MapPermission};
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_us;
@@ -61,6 +61,8 @@ pub fn run_tasks() {
             if task_inner.task_start_time == 0 {
                 task_inner.task_start_time = get_time_us();
             }
+            let pass = BIG_STRIDE / task_inner.prio as usize;
+            task_inner.stride += pass;
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
             drop(task_inner);
@@ -123,7 +125,9 @@ pub fn increase_cur_syscall(id: usize) {
 
 pub fn get_cur_syscall() -> [u32; MAX_SYSCALL_NUM] {
     // PROCESSOR.exclusive_access().get_current_task_syscall()
-    current_task().unwrap().inner_exclusive_access().get_syscall_times()
+    let mut ret = [0; MAX_SYSCALL_NUM];
+    ret.copy_from_slice(current_task().unwrap().inner_exclusive_access().get_syscall_times().as_slice());
+    ret
 }
 
 pub fn mmap(start: usize, len: usize, port: usize) -> isize{

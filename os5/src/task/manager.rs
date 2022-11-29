@@ -29,6 +29,24 @@ impl TaskManager {
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
         self.ready_queue.pop_front()
     }
+
+    pub fn fetch_stride(&mut self) -> Option<Arc<TaskControlBlock>>{
+        if self.ready_queue.is_empty(){
+            return None;
+        }
+        let mut cur_stride = self.ready_queue.front().unwrap().get_stride();
+        let mut idx = 0;
+        for (i, t) in self.ready_queue.iter().enumerate(){
+            let s = t.get_stride();
+            if s < cur_stride{
+                cur_stride = s;
+                idx = i;
+            }
+        }
+        let ret = self.ready_queue.get(idx).map(|t| Arc::clone(t));
+        self.ready_queue.remove(idx);
+        ret
+    }
 }
 
 lazy_static! {
@@ -42,5 +60,6 @@ pub fn add_task(task: Arc<TaskControlBlock>) {
 }
 
 pub fn fetch_task() -> Option<Arc<TaskControlBlock>> {
-    TASK_MANAGER.exclusive_access().fetch()
+    // TASK_MANAGER.exclusive_access().fetch()
+    TASK_MANAGER.exclusive_access().fetch_stride()
 }

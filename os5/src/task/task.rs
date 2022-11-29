@@ -51,7 +51,11 @@ pub struct TaskControlBlockInner {
     // first schedule time
     pub task_start_time: usize,
     // syscall count array
-    pub task_syscall_times: [u32; MAX_SYSCALL_NUM],
+    pub task_syscall_times: Vec<u32>,
+    // priority
+    pub prio: isize,
+    // stride value
+    pub stride: usize,
 }
 
 /// Simple access to its internal fields
@@ -81,8 +85,12 @@ impl TaskControlBlockInner {
         self.task_start_time
     }
 
-    pub fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM]{
+    pub fn get_syscall_times(&self) -> Vec<u32>{
         self.task_syscall_times.clone()
+    }
+
+    pub fn set_prio(&mut self, prio: isize){
+        self.prio = prio;
     }
 }
 
@@ -90,6 +98,10 @@ impl TaskControlBlock {
     /// Get the mutex to get the RefMut TaskControlBlockInner
     pub fn inner_exclusive_access(&self) -> RefMut<'_, TaskControlBlockInner> {
         self.inner.exclusive_access()
+    }
+
+    pub fn get_stride(&self) -> usize{
+        self.inner.exclusive_access().stride
     }
 
     /// Create a new process
@@ -121,7 +133,9 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     task_start_time: 0,
-                    task_syscall_times: [0; MAX_SYSCALL_NUM],
+                    task_syscall_times: [0; MAX_SYSCALL_NUM].to_vec(),
+                    prio: 16,
+                    stride: 0,
                 })
             },
         };
@@ -190,7 +204,9 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     task_start_time: 0,
-                    task_syscall_times: [0; MAX_SYSCALL_NUM],
+                    task_syscall_times: [0; MAX_SYSCALL_NUM].to_vec(),
+                    prio: 16,
+                    stride: 0,
                 })
             },
         });
@@ -238,7 +254,9 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     task_start_time: 0,
-                    task_syscall_times: [0; MAX_SYSCALL_NUM],
+                    task_syscall_times: [0; MAX_SYSCALL_NUM].to_vec(),
+                    prio: 16,
+                    stride: 0,
                 })
             },
         });
