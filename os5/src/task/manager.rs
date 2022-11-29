@@ -43,8 +43,8 @@ impl TaskManager {
                 idx = i;
             }
         }
-        let ret = self.ready_queue.get(idx).map(|t| Arc::clone(t));
-        self.ready_queue.remove(idx);
+        // let ret = self.ready_queue.get(idx).map(|t| Arc::clone(t));
+        let ret = self.ready_queue.remove(idx);
         ret
     }
 }
@@ -60,6 +60,6 @@ pub fn add_task(task: Arc<TaskControlBlock>) {
 }
 
 pub fn fetch_task() -> Option<Arc<TaskControlBlock>> {
-    TASK_MANAGER.exclusive_access().fetch()
-    // TASK_MANAGER.exclusive_access().fetch_stride()
+    // TASK_MANAGER.exclusive_access().fetch()
+    TASK_MANAGER.exclusive_access().fetch_stride()
 }

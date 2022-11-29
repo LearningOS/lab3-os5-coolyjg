@@ -61,8 +61,7 @@ pub fn run_tasks() {
             if task_inner.task_start_time == 0 {
                 task_inner.task_start_time = get_time_us();
             }
-            let pass = BIG_STRIDE / task_inner.prio as usize;
-            task_inner.stride += pass;
+            task_inner.stride += task_inner.pass;
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
             drop(task_inner);
